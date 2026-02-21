@@ -50,6 +50,7 @@ Desktop.ini
 
 # SAP CDS bindings
 .cds-services.json
+.cdsrc-private.json
 
 # Temporary files
 *.tmp
