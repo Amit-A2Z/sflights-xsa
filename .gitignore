@@ -52,6 +52,9 @@ Desktop.ini
 .cds-services.json
 .cdsrc-private.json
 
+# Claude Code MCP config (machine-specific paths)
+.mcp.json
+
 # Temporary files
 *.tmp
 *.bak
