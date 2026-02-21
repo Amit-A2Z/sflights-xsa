@@ -1,0 +1,36 @@
+{
+  "name": "sflights-cap",
+  "version": "1.0.0",
+  "description": "SAP Flight Model — BTP CAP CDS Project",
+  "repository": "https://github.com/AKS91/sflights-xsa",
+  "license": "MIT",
+  "dependencies": {
+    "@sap/cds": "^9",
+    "@cap-js/hana": "^2",
+    "@sap/xssec": "^4",
+    "express": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^2",
+    "@sap/cds-dk": "^9"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch"
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "sql"
+      },
+      "[production]": {
+        "db": {
+          "kind": "hana-cloud"
+        },
+        "auth": {
+          "kind": "xsuaa"
+        }
+      }
+    }
+  }
+}

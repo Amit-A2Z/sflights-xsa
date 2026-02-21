@@ -1,7 +1,25 @@
-fioriHtmlRunner.html
-.*/fioriHtmlRunner.html
-mock_preview_sapui5.html
-.*/mock_preview_sapui5.html
-extended_runnable_file.html
-.*/extended_runnable_file.html
-sap-ui-cachebuster-info.json
+node_modules/
+gen/
+dist/
+*.sqlite
+*.db
+default-*.json
+.env
+*.mtar
+mta_archives/
+resources/
+_out/
+
+# IDE
+.che/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SAP
+connection.properties
+default-env.json

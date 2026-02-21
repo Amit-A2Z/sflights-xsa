@@ -1,0 +1,12 @@
+{
+  "welcomeFile": "/odata/v4/flights/$metadata",
+  "authenticationMethod": "route",
+  "routes": [
+    {
+      "source": "^/odata/v4/flights/(.*)$",
+      "target": "/odata/v4/flights/$1",
+      "destination": "srv-api",
+      "authenticationType": "xsuaa"
+    }
+  ]
+}

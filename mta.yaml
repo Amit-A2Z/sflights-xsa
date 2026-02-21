@@ -1,16 +1,68 @@
-ID: Flights
-_schema-version: '2.1'
-version: 0.0.1
+_schema-version: '3.3'
+ID: sflights-cap
+version: 1.0.0
+description: SAP Flight Model — BTP CAP CDS Project
+
+parameters:
+  enable-parallel-deployments: true
+
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
 
 modules:
- - name: db
-   type: hdb
-   path: db
-   requires:
-    - name: hdi_db
+  - name: sflights-cap-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 256M
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: sflights-cap-db
+      - name: sflights-cap-auth
+
+  - name: sflights-cap-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 256M
+    requires:
+      - name: sflights-cap-db
+
+  - name: sflights-cap-approuter
+    type: approuter.nodejs
+    path: app/router
+    parameters:
+      memory: 128M
+    requires:
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
+      - name: sflights-cap-auth
 
 resources:
- - name: hdi_db
-   properties:
-      hdi-container-name: ${service-name}
-   type: com.sap.xs.hdi-container
+  - name: sflights-cap-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+    properties:
+      hdi-service-name: ${service-name}
+
+  - name: sflights-cap-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json

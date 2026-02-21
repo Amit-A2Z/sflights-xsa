@@ -1,0 +1,9 @@
+{
+  "name": "sflights-cap-approuter",
+  "dependencies": {
+    "@sap/approuter": "^16"
+  },
+  "scripts": {
+    "start": "node node_modules/@sap/approuter/approuter.js"
+  }
+}

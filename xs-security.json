@@ -1,0 +1,32 @@
+{
+  "xsappname": "sflights-cap",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    { "name": "$XSAPPNAME.admin", "description": "Full access" },
+    { "name": "$XSAPPNAME.viewer", "description": "Read-only access" }
+  ],
+  "role-templates": [
+    {
+      "name": "FlightsAdmin",
+      "description": "Administer flight data",
+      "scope-references": ["$XSAPPNAME.admin"]
+    },
+    {
+      "name": "FlightsViewer",
+      "description": "View flight data",
+      "scope-references": ["$XSAPPNAME.viewer"]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "sflights-cap-admin",
+      "description": "Flight Data Administrator",
+      "role-template-references": ["$XSAPPNAME.FlightsAdmin"]
+    },
+    {
+      "name": "sflights-cap-viewer",
+      "description": "Flight Data Viewer",
+      "role-template-references": ["$XSAPPNAME.FlightsViewer"]
+    }
+  ]
+}
