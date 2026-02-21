@@ -1,7 +1,8 @@
 {
     "name": "sflights-cap-db",
     "dependencies": {
-        "@sap/hdi-deploy": "^5.6.1"
+        "@sap/hdi-deploy": "^5.6.1",
+        "hdb": "^0.19.0"
     },
     "scripts": {
         "start": "node node_modules/@sap/hdi-deploy/deploy.js"
