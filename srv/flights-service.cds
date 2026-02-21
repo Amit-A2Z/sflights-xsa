@@ -3,6 +3,7 @@ using flights from '../db/schema';
 service FlightsService @(path: '/odata/v4/flights') {
 
     // ─── Airlines & Fleet ────────────────────────────────
+    @cds.redirection.target
     entity Carriers         as projection on flights.Carriers;
     entity CarrierPlanes    as projection on flights.CarrierPlanes;
     entity Planes           as projection on flights.Planes;
@@ -11,14 +12,17 @@ service FlightsService @(path: '/odata/v4/flights') {
 
     // ─── Connections & Flights ───────────────────────────
     entity Connections      as projection on flights.Connections;
+    @cds.redirection.target
     entity Flights          as projection on flights.Flights;
 
     // ─── Bookings ────────────────────────────────────────
+    @cds.redirection.target
     entity Bookings         as projection on flights.Bookings;
     entity Tickets          as projection on flights.Tickets;
     entity Invoices         as projection on flights.Invoices;
 
     // ─── Customers & Business Partners ──────────────────
+    @cds.redirection.target
     entity Customers        as projection on flights.Customers;
     entity BusinessPartners as projection on flights.BusinessPartners;
 
@@ -47,7 +51,9 @@ service FlightsService @(path: '/odata/v4/flights') {
     // ─── Views ───────────────────────────────────────────
     @readonly entity CustomerBusinessPartners as projection on flights.CustomerBusinessPartners;
     @readonly entity CarrierConnections       as projection on flights.CarrierConnections;
+    @readonly entity FlightSchedule           as projection on flights.FlightSchedule;
+    @readonly entity BookingDetails           as projection on flights.BookingDetails;
 
-    // ─── Functions (replaces parameterized FligthsOnDate view) ────
+    // ─── Functions ───────────────────────────────────────
     function getFlightsOnDate(flightDate : Date) returns array of CarrierConnections;
 }
