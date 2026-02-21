@@ -1,25 +1,56 @@
+# Dependencies
 node_modules/
+
+# CAP build output
 gen/
 dist/
+_out/
+resources/
+mta_archives/
+
+# Database files
 *.sqlite
 *.db
-default-*.json
+
+# Credentials & environment (NEVER commit these)
 .env
+.env.*
+default-*.json
+connection.properties
+*.pem
+*.key
+
+# MTA build artifacts
 *.mtar
-mta_archives/
-resources/
-_out/
+mta-op-*/
+
+# Logs
+*.log
+npm-debug.log*
 
 # IDE
 .che/
 .vscode/
 *.swp
 *.swo
+*.code-workspace
 
-# OS
+# macOS
 .DS_Store
-Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+__MACOSX/
 
-# SAP
-connection.properties
-default-env.json
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# SAP CDS bindings
+.cds-services.json
+
+# Temporary files
+*.tmp
+*.bak
