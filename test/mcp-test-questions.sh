@@ -4,7 +4,8 @@
 # ─────────────────────────────────────────────────────────────
 #
 # Tests the 10 example questions from README.md by running
-# their SQL queries directly through the cap_cql_query tool.
+# their SQL queries directly through the cap_cql_query tool
+# via JSON-RPC over stdio.
 #
 # Prerequisites:
 #   cd mcp-server && npm run build && cd ..
@@ -13,14 +14,17 @@
 #   bash test/mcp-test-questions.sh
 # ─────────────────────────────────────────────────────────────
 
-set -euo pipefail
+set -uo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-MCP_SERVER="node $PROJECT_DIR/mcp-server/build/index.js"
-INSPECTOR="npx -y @modelcontextprotocol/inspector --cli"
+MCP_SERVER="$PROJECT_DIR/mcp-server/build/index.js"
+TMP_DIR=$(mktemp -d)
 
 PASS=0
 FAIL=0
+
+# Cleanup on exit
+trap "rm -rf $TMP_DIR" EXIT
 
 run_query() {
   local num="$1"
@@ -29,19 +33,70 @@ run_query() {
 
   printf "  Q%-2s %-55s " "$num" "$desc"
 
-  local args="{\"sql\": \"$sql\", \"maxRows\": 10}"
-  local output
-  if output=$(echo "$args" | $INSPECTOR --server "$MCP_SERVER" --tool "cap_cql_query" 2>&1); then
-    if echo "$output" | grep -q "Query Results\|rows"; then
-      echo "✓ PASS"
-      PASS=$((PASS + 1))
-    else
-      echo "✗ FAIL (no results)"
-      FAIL=$((FAIL + 1))
+  local out_file="$TMP_DIR/q${num}.json"
+
+  # Escape the SQL for JSON (double quotes and backslashes)
+  local escaped_sql
+  escaped_sql=$(echo "$sql" | sed 's/\\/\\\\/g; s/"/\\"/g')
+
+  local init_req='{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
+  local init_notify='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+  local call_req="{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"cap_cql_query\",\"arguments\":{\"sql\":\"$escaped_sql\",\"maxRows\":10}}}"
+
+  (printf '%s\n%s\n%s\n' "$init_req" "$init_notify" "$call_req"; sleep 20) | \
+    (cd "$PROJECT_DIR" && node "$MCP_SERVER") > "$out_file" 2>/dev/null &
+  local pid=$!
+
+  # Wait for response (poll, max 25s)
+  local waited=0
+  while [ $waited -lt 50 ]; do
+    sleep 0.5
+    waited=$((waited + 1))
+    if [ -f "$out_file" ] && grep -q '"id":1' "$out_file" 2>/dev/null; then
+      break
     fi
-  else
-    echo "✗ FAIL (error)"
+    if ! kill -0 $pid 2>/dev/null; then
+      break
+    fi
+  done
+
+  kill $pid 2>/dev/null
+  wait $pid 2>/dev/null
+
+  # Check response
+  local response_line
+  response_line=$(grep '"id":1' "$out_file" 2>/dev/null | head -1)
+
+  if [ -z "$response_line" ]; then
+    echo "✗ FAIL (no response)"
     FAIL=$((FAIL + 1))
+    return
+  fi
+
+  local row_count
+  row_count=$(echo "$response_line" | python3 -c "
+import json, sys, re
+resp = json.loads(sys.stdin.read().strip())
+text = resp.get('result',{}).get('content',[{}])[0].get('text','')
+if 'Query Error' in text or text.startswith('Error executing'):
+    print('-1')
+elif 'No results' in text:
+    print('0')
+else:
+    # Match **Rows:** N or Rows: N (with optional markdown bold)
+    m = re.search(r'\*?\*?Rows:\*?\*?\s*(\d+)', text)
+    print(m.group(1) if m else '0')
+" 2>/dev/null)
+
+  if [ "$row_count" = "-1" ]; then
+    echo "✗ FAIL (query error)"
+    FAIL=$((FAIL + 1))
+  elif [ "$row_count" = "0" ]; then
+    echo "✗ FAIL (no rows)"
+    FAIL=$((FAIL + 1))
+  else
+    echo "✓ PASS ($row_count rows)"
+    PASS=$((PASS + 1))
   fi
 }
 

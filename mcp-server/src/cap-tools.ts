@@ -12,8 +12,13 @@
  *  - Shell out:  cds build, cds deploy, cf commands (long-running ops)
  */
 
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { executeShell, executeCds, getCompiledModel, clearCsnCache } from './cds-executor.js';
 import { formatMarkdownTable, formatEntityDetail, formatServiceList, formatNavMap } from './output-formatter.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export interface ToolDefinition {
   name: string;
@@ -605,8 +610,7 @@ const capQuery: ToolDefinition = {
  * It ships alongside the MCP server build.
  */
 function queryRunnerPath(): string {
-  // Scripts live at the same level as src/ and build/
-  const path = require('path');
+  // Scripts live at mcp-server/scripts/, __dirname is mcp-server/build/
   return path.resolve(__dirname, '..', 'scripts', 'query-runner.cjs');
 }
 
