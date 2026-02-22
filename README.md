@@ -14,7 +14,7 @@ The classic SAP SFLIGHT data model — airlines, flights, bookings, passengers �
 | **59 Navigation Properties** | 5 compositions + 54 associations — fully navigable data model |
 | **24 CSV Seed Data Files** | ~5,000 flights, 10,000+ bookings, 24 airlines, 15 destination cities (2023-2028) — ready to query immediately |
 | **OData V4 Service** | REST API at `/odata/v4/flights` with full metadata, filtering, and expansion |
-| **16-Tool MCP Server** | AI assistant that understands your data model, runs SQL queries, inspects schemas, and answers questions in plain English |
+| **17-Tool MCP Server** | AI assistant that understands your data model, runs SQL queries, inspects schemas, and answers questions in plain English |
 | **BTP-Ready Deployment** | MTA descriptor with XSUAA security, HANA Cloud HDI, and managed approuter |
 
 ---
@@ -50,7 +50,7 @@ This is where it gets exciting. The built-in MCP server lets you ask questions a
 > *"What's the total passenger occupancy across all airlines?"*
 > *"Show me the top 5 routes by number of bookings"*
 
-Claude uses the 16 MCP tools behind the scenes to inspect the data model, run SQL queries, and give you formatted answers.
+Claude uses the 17 MCP tools behind the scenes to inspect the data model, run SQL queries, and give you formatted answers.
 
 ### What is MCP?
 
@@ -115,11 +115,13 @@ You: How many bookings were made in 2025?
 
 Claude will use the MCP tools to query your data and give you formatted answers with actual numbers.
 
+**Business users on Excel?** Claude for Excel can connect to this same data via MCP connectors. See [Claude for Excel Integration](docs/claude-for-excel.md).
+
 ---
 
 ## MCP Server — 16 Tools
 
-The MCP server provides 16 tools, all prefixed with `cap_`:
+The MCP server provides 17 tools, all prefixed with `cap_`:
 
 ### Model Introspection
 | Tool | What It Does |
@@ -127,6 +129,7 @@ The MCP server provides 16 tools, all prefixed with `cap_`:
 | `cap_entities` | Lists all 26 entities + 4 views with key fields, associations, and compositions |
 | `cap_entity_detail` | Full definition of any entity — all fields, types, and relationships |
 | `cap_associations` | All 59 navigation properties with cardinality and target entities |
+| `cap_nav_map` | Complete navigation graph with SQL JOIN ON clauses — essential for multi-table queries |
 | `cap_services` | Service definitions with entity counts and function/action counts |
 
 ### Schema & Compilation
@@ -272,6 +275,15 @@ sequenceDiagram
 **Why both servers?** Use them together for the best experience:
 - **CAP MCP Server** — works offline, understands CDS models, great for development and data exploration
 - **hana-cli MCP Server** — connects to live HANA Cloud, needed for production data and database administration
+
+---
+
+## Integration Guides
+
+| Guide | Description |
+|-------|------------|
+| [Claude for Excel](docs/claude-for-excel.md) | Connect flight data tools to Claude's Excel add-in — business users query data in plain English from spreadsheets |
+| [External Integration Paths](docs/integration-paths.md) | Three ways to connect external MCP servers: gavdi/cap-mcp (merged plugin), CData OData (standalone Java), odata_mcp_go (standalone Go) — architecture comparison and step-by-step setup |
 
 ---
 
@@ -521,7 +533,10 @@ sflights-xsa/
     flights-service.js      # Custom handler: getFlightsOnDate()
   app/router/               # Managed approuter for BTP deployment
     xs-app.json             # Route config with XSUAA auth
-  mcp-server/               # AI-Powered MCP Server (16 tools)
+  docs/                     # Integration guides
+    claude-for-excel.md     # Claude for Excel integration
+    integration-paths.md    # External MCP server comparison (3 paths)
+  mcp-server/               # AI-Powered MCP Server (17 tools)
     src/
       index.ts              # MCP Server class with stdio transport
       cap-tools.ts          # Tool definitions with schemas and handlers

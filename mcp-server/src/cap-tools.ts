@@ -13,7 +13,7 @@
  */
 
 import { executeShell, executeCds, getCompiledModel, clearCsnCache } from './cds-executor.js';
-import { formatMarkdownTable, formatEntityDetail, formatServiceList } from './output-formatter.js';
+import { formatMarkdownTable, formatEntityDetail, formatServiceList, formatNavMap } from './output-formatter.js';
 
 export interface ToolDefinition {
   name: string;
@@ -212,6 +212,100 @@ const capServices: ToolDefinition = {
     const csn = await getCompiledModel(cwd);
     const model = JSON.parse(csn);
     return formatServiceList(model);
+  },
+};
+
+// ─── Navigation Map Tool ────────────────────────────────────
+
+const capNavMap: ToolDefinition = {
+  name: 'cap_nav_map',
+  description:
+    'Returns the complete navigation graph of the CDS data model with SQL JOIN conditions. ' +
+    'For every association and composition, shows: source SQL table, target SQL table, ' +
+    'cardinality (to-one / to-many), type (association / composition), and the exact SQL JOIN ON clause. ' +
+    'Call this FIRST when you need to write multi-table JOIN queries for cap_cql_query. ' +
+    'Tables use underscore pattern: flights_Carriers, flights_Connections, flights_Flights, etc.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      entity: {
+        type: 'string',
+        description: 'Filter to a specific entity (e.g., "Carriers"). Omit for full navigation map.',
+      },
+    },
+  },
+  handler: async (args, cwd) => {
+    const csn = await getCompiledModel(cwd);
+    const model = JSON.parse(csn);
+    const defs = model.definitions || {};
+
+    const navMap = new Map<string, Array<{
+      property: string;
+      targetTable: string;
+      cardinality: string;
+      type: string;
+      joinOn: string;
+    }>>();
+
+    for (const [name, def] of Object.entries(defs) as Array<[string, any]>) {
+      if (def.kind !== 'entity') continue;
+
+      // Skip service projections (e.g. FlightsService.Carriers)
+      const parts = name.split('.');
+      if (parts.length > 1) {
+        const parentName = parts.slice(0, -1).join('.');
+        const parent = defs[parentName];
+        if (parent && parent.kind === 'service') continue;
+      }
+
+      if (args.entity && !name.endsWith(`.${args.entity}`) && name !== args.entity) continue;
+
+      const sourceTable = name.replace(/\./g, '_');
+      const edges: Array<{
+        property: string;
+        targetTable: string;
+        cardinality: string;
+        type: string;
+        joinOn: string;
+      }> = [];
+
+      for (const [elemName, elem] of Object.entries(def.elements || {}) as Array<[string, any]>) {
+        if (elem.type !== 'cds.Association' && elem.type !== 'cds.Composition') continue;
+
+        const targetFqn = elem.target || '';
+        const targetTable = targetFqn.replace(/\./g, '_');
+        const card = elem.cardinality?.max === '*' ? 'to many' : 'to one';
+        const relType = elem.type === 'cds.Composition' ? 'composition' : 'association';
+
+        // Build SQL JOIN ON clause from CSN on-condition
+        let joinOn = '';
+        if (elem.on && Array.isArray(elem.on)) {
+          const tokens: string[] = [];
+          for (const token of elem.on) {
+            if (typeof token === 'string') {
+              tokens.push(token === '=' ? '=' : token === 'and' ? 'AND' : token.toUpperCase());
+            } else if (token.ref) {
+              if (token.ref.length === 1) {
+                tokens.push(`${sourceTable}.${token.ref[0]}`);
+              } else if (token.ref.length >= 2) {
+                tokens.push(`${targetTable}.${token.ref[token.ref.length - 1]}`);
+              }
+            }
+          }
+          joinOn = tokens.join(' ');
+        }
+
+        edges.push({ property: elemName, targetTable, cardinality: card, type: relType, joinOn });
+      }
+
+      if (edges.length > 0) {
+        navMap.set(sourceTable, edges);
+      }
+    }
+
+    if (navMap.size === 0) return 'No navigation properties found.';
+
+    return formatNavMap(navMap);
   },
 };
 
@@ -520,22 +614,37 @@ const capCqlQuery: ToolDefinition = {
   name: 'cap_cql_query',
   description:
     'Execute a SQL query against the CAP project database (in-memory SQLite with all CSV seed data loaded). ' +
-    'Use standard SQL syntax with table names following: namespace_EntityName pattern ' +
-    '(e.g., flights_Flights, flights_Carriers, flights_Connections, flights_Bookings). ' +
-    'Supports JOINs, GROUP BY, aggregations, subqueries — the full SQLite SQL dialect. ' +
-    'Perfect for answering data questions like "flights to New York", "total occupancy by airline", "revenue by route".',
+    'Supports JOINs, GROUP BY, aggregations, subqueries — full SQLite SQL dialect. ' +
+    'Tables: flights_Carriers, flights_Connections, flights_Flights, flights_Bookings, flights_Customers, ' +
+    'flights_Planes, flights_CarrierPlanes, flights_Airports, flights_CityAirports, flights_GeoCities, ' +
+    'flights_TravelAgencies, flights_Tickets, flights_Invoices, flights_BusinessPartners, flights_Counters, ' +
+    'flights_Meals, flights_MealTexts, flights_Menus, flights_FlightMeals, flights_Starters, ' +
+    'flights_MainCourses, flights_Desserts, flights_CurrencyRates, flights_CurrencyDecimals, ' +
+    'flights_CargoPlanes, flights_PassengerPlanes. All tables have MANDT column. ' +
+    'COMMON JOIN PATTERNS: ' +
+    '(1) Carrier name for flights: f JOIN flights_Carriers c ON c.MANDT=f.MANDT AND c.CARRID=f.CARRID | ' +
+    '(2) Route for flights: f JOIN flights_Connections cn ON cn.MANDT=f.MANDT AND cn.CARRID=f.CARRID AND cn.CONNID=f.CONNID | ' +
+    '(3) Customer for bookings: b JOIN flights_Customers cu ON cu.MANDT=b.MANDT AND cu.ID=b.CUSTOMID | ' +
+    '(4) Bookings for flights: f JOIN flights_Bookings b ON b.MANDT=f.MANDT AND b.CARRID=f.CARRID AND b.CONNID=f.CONNID AND b.FLDATE=f.FLDATE | ' +
+    '(5) Fleet: flights_Carriers c JOIN flights_CarrierPlanes cp ON cp.MANDT=c.MANDT AND cp.CARRID=c.CARRID JOIN flights_Planes p ON p.MANDT=cp.MANDT AND p.PLANETYPE=cp.PLANETYPE | ' +
+    '(6) Meals for connections: cn JOIN flights_FlightMeals fm ON fm.MANDT=cn.MANDT AND fm.CARRID=cn.CARRID AND fm.CONNID=cn.CONNID JOIN flights_Meals m ON m.MANDT=fm.MANDT AND m.CARRID=fm.CARRID AND m.MEALNUMBER=fm.MEALNUMBER | ' +
+    '(7) 4-hop chain: flights_Carriers c JOIN flights_Connections cn ON cn.MANDT=c.MANDT AND cn.CARRID=c.CARRID JOIN flights_Flights f ON f.MANDT=cn.MANDT AND f.CARRID=cn.CARRID AND f.CONNID=cn.CONNID JOIN flights_Bookings b ON b.MANDT=f.MANDT AND b.CARRID=f.CARRID AND b.CONNID=f.CONNID AND b.FLDATE=f.FLDATE | ' +
+    '(8) Airport info: cn JOIN flights_Airports a ON a.MANDT=cn.MANDT AND a.ID=cn.AIRPFROM | ' +
+    '(9) Agency for bookings: b JOIN flights_TravelAgencies ta ON ta.MANDT=b.MANDT AND ta.AGENCYNUM=b.AGENCYNUM | ' +
+    '(10) Tickets: b JOIN flights_Tickets t ON t.MANDT=b.MANDT AND t.CARRID=b.CARRID AND t.CONNID=b.CONNID AND t.FLDATE=b.FLDATE AND t.BOOKID=b.BOOKID. ' +
+    'KEY COLUMNS: Flights(CARRID,CONNID,FLDATE,PRICE,CURRENCY,PLANETYPE,SEATSMAX,SEATSOCC,PAYMENTSUM,SEATSMAX_B,SEATSOCC_B,SEATSMAX_F,SEATSOCC_F) | ' +
+    'Connections(CARRID,CONNID,CITYFROM,CITYTO,AIRPFROM,AIRPTO,COUNTRYFR,COUNTRYTO,DEPTIME,ARRTIME,DISTANCE,FLTIME) | ' +
+    'Carriers(CARRID,CARRNAME,CURRCODE) | Bookings(CARRID,CONNID,FLDATE,BOOKID,CUSTOMID,CUSTTYPE,CLASS,FORCURAM,FORCURKEY,ORDER_DATE,CANCELLED,AGENCYNUM,PASSNAME) | ' +
+    'Customers(ID,NAME,FORM,CITY,COUNTRY,CUSTTYPE,DISCOUNT,EMAIL) | Planes(PLANETYPE,SEATSMAX,PRODUCER,SEATSMAX_B,SEATSMAX_F) | Airports(ID,NAME,TIME_ZONE). ' +
+    'DERIVED METRICS: occupancy_rate=CAST(SEATSOCC AS FLOAT)/SEATSMAX*100 | empty_seats=SEATSMAX-SEATSOCC | revenue_est=PRICE*SEATSOCC. ' +
+    'DATE FUNCTIONS (SQLite): strftime("%Y",FLDATE) for year, strftime("%Y-%m",FLDATE) for month, FLDATE BETWEEN "2025-01-01" AND "2025-12-31". ' +
+    'PRE-JOINED VIEWS (no JOINs needed): flights_FlightSchedule, flights_BookingDetails, flights_CarrierConnections, flights_CustomerBusinessPartners.',
   inputSchema: {
     type: 'object',
     properties: {
       sql: {
         type: 'string',
-        description:
-          'SQL query. Table names use underscore pattern: flights_Flights, flights_Carriers, flights_Connections, ' +
-          'flights_Bookings, flights_Customers, flights_Invoices, flights_Tickets, flights_Airports, etc. ' +
-          'Key columns: Flights(CARRID, CONNID, FLDATE, PRICE, CURRENCY, PLANETYPE, SEATSMAX, SEATSOCC), ' +
-          'Connections(CARRID, CONNID, CITYFROM, CITYTO, AIRPFROM, AIRPTO, DEPTIME, ARRTIME, DISTANCE), ' +
-          'Carriers(CARRID, CARRNAME, CURRCODE), Bookings(CARRID, CONNID, FLDATE, BOOKID, CUSTOMID, ORDER_DATE), ' +
-          'Customers(CUSTTYPE, DISCOUNT, FORM, NAME, CITY, COUNTRY, POSTCODE). All tables have MANDT key (use for JOINs).',
+        description: 'SQL query to execute. Use table names from the description above.',
       },
       maxRows: {
         type: 'number',
@@ -668,8 +777,9 @@ const capSampleData: ToolDefinition = {
 const capDbSchema: ToolDefinition = {
   name: 'cap_db_schema',
   description:
-    'List all database tables with their column definitions (name, type, key status). ' +
-    'Essential reference for building SQL queries — shows exact table and column names to use in cap_cql_query.',
+    'List all database tables with column definitions (name, type, key status) AND relationship info ' +
+    '(navigation properties with SQL JOIN ON clauses). Essential for building SQL queries — ' +
+    'shows exact table names, column names, and how tables relate to each other.',
   inputSchema: {
     type: 'object',
     properties: {},
@@ -685,6 +795,42 @@ const capDbSchema: ToolDefinition = {
       const result = JSON.parse(output.trim());
       if (result.error) return `Error: ${result.error}`;
 
+      // Build relationship map from CSN
+      const csn = await getCompiledModel(cwd);
+      const model = JSON.parse(csn);
+      const modelDefs = model.definitions || {};
+      const relMap = new Map<string, Array<{ nav: string; targetTable: string; joinOn: string }>>();
+
+      for (const [eName, eDef] of Object.entries(modelDefs) as Array<[string, any]>) {
+        if (eDef.kind !== 'entity') continue;
+        const eParts = eName.split('.');
+        if (eParts.length > 1) {
+          const parentName = eParts.slice(0, -1).join('.');
+          if (modelDefs[parentName]?.kind === 'service') continue;
+        }
+        const srcTable = eName.replace(/\./g, '_');
+        const rels: Array<{ nav: string; targetTable: string; joinOn: string }> = [];
+        for (const [elName, el] of Object.entries(eDef.elements || {}) as Array<[string, any]>) {
+          if (el.type !== 'cds.Association' && el.type !== 'cds.Composition') continue;
+          const tgtTable = (el.target || '').replace(/\./g, '_');
+          let joinOn = '';
+          if (el.on && Array.isArray(el.on)) {
+            const toks: string[] = [];
+            for (const tok of el.on) {
+              if (typeof tok === 'string') {
+                toks.push(tok === '=' ? '=' : tok === 'and' ? 'AND' : tok.toUpperCase());
+              } else if (tok.ref) {
+                if (tok.ref.length === 1) toks.push(`${srcTable}.${tok.ref[0]}`);
+                else toks.push(`${tgtTable}.${tok.ref[tok.ref.length - 1]}`);
+              }
+            }
+            joinOn = toks.join(' ');
+          }
+          rels.push({ nav: elName, targetTable: tgtTable, joinOn });
+        }
+        if (rels.length > 0) relMap.set(srcTable, rels);
+      }
+
       const { tables, totalTables } = result;
       let md = `## Database Schema\n\n**Total tables:** ${totalTables}\n\n`;
 
@@ -698,12 +844,22 @@ const capDbSchema: ToolDefinition = {
           c.length ? `${c.type}(${c.length})` : c.type,
           c.key ? 'KEY' : '',
         ]);
-        md += formatMarkdownTable(headers, rows) + '\n';
+        md += formatMarkdownTable(headers, rows);
+
+        // Append relationship info if available
+        const rels = relMap.get(t.table);
+        if (rels && rels.length > 0) {
+          md += '\n**Relationships:**\n';
+          const relHeaders = ['Navigation', 'Target Table', 'SQL JOIN ON'];
+          const relRows = rels.map(r => [r.nav, r.targetTable, r.joinOn]);
+          md += formatMarkdownTable(relHeaders, relRows);
+        }
+        md += '\n';
       }
 
       return md;
     } catch {
-      return `Raw output:\n${output.slice(0, 5000)}`;
+      return `**Raw output:**\n${output.slice(0, 5000)}`;
     }
   },
 };
@@ -715,6 +871,7 @@ export const ALL_TOOLS: ToolDefinition[] = [
   capEntities,
   capEntityDetail,
   capAssociations,
+  capNavMap,
   capServices,
   // Schema & compilation
   capCompile,

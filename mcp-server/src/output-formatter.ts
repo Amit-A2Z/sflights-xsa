@@ -134,6 +134,37 @@ function formatOnCondition(on: any[]): string {
 /**
  * Format service list from CSN model
  */
+/**
+ * Format navigation map — associations/compositions with SQL JOIN conditions
+ */
+export function formatNavMap(
+  navMap: Map<string, Array<{
+    property: string;
+    targetTable: string;
+    cardinality: string;
+    type: string;
+    joinOn: string;
+  }>>
+): string {
+  let totalEdges = 0;
+  for (const edges of navMap.values()) totalEdges += edges.length;
+
+  let md = `## Navigation Map (${totalEdges} relationships)\n\n`;
+  md += `Use these JOIN conditions with \`cap_cql_query\`.\n\n`;
+
+  for (const [sourceTable, edges] of navMap) {
+    md += `### ${sourceTable}\n\n`;
+    const headers = ['Nav Property', 'Target Table', 'Card.', 'Type', 'SQL JOIN ON'];
+    const rows = edges.map(e => [e.property, e.targetTable, e.cardinality, e.type, e.joinOn]);
+    md += formatMarkdownTable(headers, rows) + '\n';
+  }
+
+  return md;
+}
+
+/**
+ * Format service list from CSN model
+ */
 export function formatServiceList(model: any): string {
   const defs = model.definitions || {};
 
