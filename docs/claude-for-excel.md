@@ -153,6 +153,89 @@ This exposes all 17 `cap_` tools over HTTP/SSE at `http://localhost:8080`. Regis
 
 ---
 
+## Local Testing (supergateway)
+
+Test the Excel integration locally before deploying to BTP. This wraps the existing 17-tool MCP server as HTTP/SSE.
+
+### Quick Start
+
+```bash
+# 1. Build the MCP server (if not already built)
+cd mcp-server && npm run build && cd ..
+
+# 2. Start the HTTP/SSE wrapper
+bash scripts/start-mcp-sse.sh
+# Server runs at http://localhost:8080
+```
+
+### Verify It Works
+
+```bash
+# In another terminal — should establish SSE connection
+curl http://localhost:8080/sse
+```
+
+### Connect Claude for Excel
+
+1. Go to [claude.ai](https://claude.ai) → Organization Settings → Connectors
+2. Add Custom Connector → URL: `http://localhost:8080`
+3. Open Excel → Claude add-in → Ask a question like *"List all airlines"*
+
+> **Note:** `localhost` only works when Excel runs on the same machine. For team testing, use your machine's IP or deploy to BTP (next section).
+
+### Environment Variable
+
+Override the default port with `MCP_SSE_PORT`:
+
+```bash
+MCP_SSE_PORT=9090 bash scripts/start-mcp-sse.sh
+```
+
+---
+
+## BTP Production Deployment (gavdi/cap-mcp)
+
+For production access from Claude for Excel, the gavdi/cap-mcp plugin embeds an MCP endpoint inside the deployed CAP service. This project is already configured — here's what was set up:
+
+### What's Configured
+
+| File | Change |
+|------|--------|
+| `package.json` | `@gavdi/cap-mcp` dependency + `cds.mcp` configuration |
+| `srv/flights-service.cds` | `@mcp` annotations on 10 key entities (Carriers, Flights, Bookings, Connections, Customers, TravelAgencies, Airports, CarrierPlanes, FlightSchedule, BookingDetails) |
+| `app/router/xs-app.json` | `/mcp` route forwarding to srv module |
+
+### Deploy to BTP
+
+```bash
+# Install the new dependency
+npm install
+
+# Build and deploy
+npx cds build --production
+mbt build
+cf deploy mta_archives/sflights-cap_1.0.0.mtar
+```
+
+### After Deployment
+
+The MCP endpoint is available at:
+```
+https://0ef2ec95trial-dev-sflights-cap-approuter.cfapps.us10-001.hana.ondemand.com/mcp
+```
+
+Register this URL as a custom connector in Claude org settings. XSUAA auth flows through automatically — the plugin inherits CAP's auth configuration.
+
+### Test Locally First
+
+```bash
+cds watch
+# MCP endpoint: http://localhost:4004/mcp
+# OData endpoint: http://localhost:4004/odata/v4/flights
+```
+
+---
+
 ## Comparison: Our MCP Server vs. gavdi/cap-mcp
 
 | Aspect | Our Custom MCP Server (17 tools) | gavdi/cap-mcp Plugin |

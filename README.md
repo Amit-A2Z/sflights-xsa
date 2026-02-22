@@ -117,9 +117,28 @@ Claude will use the MCP tools to query your data and give you formatted answers 
 
 **Business users on Excel?** Claude for Excel can connect to this same data via MCP connectors. See [Claude for Excel Integration](docs/claude-for-excel.md).
 
+### Example Questions (with SQL Patterns)
+
+Not sure what to ask? Here are 10 real questions that the MCP server can answer, ordered by complexity:
+
+| # | Question | SQL Pattern | Key Tables |
+|---|----------|------------|------------|
+| 1 | *"List all airlines and their currency"* | `SELECT CARRID, CARRNAME, CURRCODE FROM flights_Carriers` | Carriers |
+| 2 | *"What currencies do airlines use?"* | `SELECT DISTINCT CURRCODE` | Carriers |
+| 3 | *"Which airlines fly to New York?"* | 3-table JOIN: Carriers → Connections → Flights | Carriers, Connections, Flights |
+| 4 | *"Average seat occupancy rate per airline"* | `JOIN + CAST(SEATSOCC AS FLOAT)/SEATSMAX*100 + AVG` | Flights, Carriers |
+| 5 | *"Top 5 busiest routes by booking count"* | 4-table JOIN + `GROUP BY CITYFROM, CITYTO` + `ORDER BY COUNT(*) DESC` | Connections, Flights, Bookings, Carriers |
+| 6 | *"Revenue estimate per airline"* | `SUM(PRICE * SEATSOCC)` grouped by carrier | Flights, Carriers |
+| 7 | *"Flights with >80% occupancy"* | Derived column: `SEATSOCC*100.0/SEATSMAX > 80` | Flights, Carriers, Connections |
+| 8 | *"Which travel agencies book the most?"* | `JOIN + COUNT + ORDER BY DESC` | Bookings, TravelAgencies |
+| 9 | *"Monthly booking trends"* | `strftime('%Y-%m', FLDATE) + GROUP BY` | Bookings, Flights |
+| 10 | *"Multi-hop route analysis (connecting flights)"* | Self-join on Connections: `c1.CITYTO = c2.CITYFROM` | Connections, Carriers |
+
+> These questions are tested in `test/mcp-test-questions.sh`. The full 20-question test suite is in `test/mcp-questions.http`.
+
 ---
 
-## MCP Server — 16 Tools
+## MCP Server — 17 Tools
 
 The MCP server provides 17 tools, all prefixed with `cap_`:
 
@@ -155,6 +174,19 @@ The MCP server provides 17 tools, all prefixed with `cap_`:
 | `cap_build` | Run CDS build (development or production) |
 | `cap_hana_mapping` | CDS entity to HANA artifact name mapping |
 | `cap_query` | OData query against a running CAP service (requires `cds watch`) |
+
+### Which MCP Server Should I Use?
+
+| Scenario | MCP Server | Why |
+|----------|-----------|-----|
+| Local development (no database) | Built-in cap-tools (17 tools) | SQLite + CSV seed data, zero setup |
+| Local with HANA Cloud | cap-tools + hana-cli | Both configured in `.mcp.json` |
+| Deployed on BTP (API consumers) | OData V4 endpoint | Standard REST/OData at `/odata/v4/flights` |
+| Business users (Excel) — local | supergateway + cap-tools | Wraps stdio→HTTP/SSE, see `scripts/start-mcp-sse.sh` |
+| Business users (Excel) — production | gavdi/cap-mcp plugin | HTTP/SSE inside CAP server at `/mcp` |
+| Quick PoC, no code changes | odata_mcp_go | Auto-discovers from `$metadata`, single binary |
+
+> For detailed setup instructions, see [External Integration Paths](docs/integration-paths.md) and [Claude for Excel Integration](docs/claude-for-excel.md).
 
 ---
 
@@ -533,8 +565,16 @@ sflights-xsa/
     flights-service.js      # Custom handler: getFlightsOnDate()
   app/router/               # Managed approuter for BTP deployment
     xs-app.json             # Route config with XSUAA auth
+  scripts/
+    start-mcp-sse.sh        # Launch MCP server as HTTP/SSE for Claude for Excel
+  test/
+    mcp-test.sh             # MCP Inspector CLI tests for all 17 tools
+    mcp-test-questions.sh   # 10 example SQL queries via MCP
+    auth-test.sh            # OAuth2 token + BTP API call test
+    odata-queries.http      # OData V4 query test suite (VS Code REST Client)
+    mcp-questions.http      # 20 AI questions for Claude Code
   docs/                     # Integration guides
-    claude-for-excel.md     # Claude for Excel integration
+    claude-for-excel.md     # Claude for Excel integration (local + BTP)
     integration-paths.md    # External MCP server comparison (3 paths)
   mcp-server/               # AI-Powered MCP Server (17 tools)
     src/

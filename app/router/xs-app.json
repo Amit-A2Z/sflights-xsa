@@ -3,6 +3,12 @@
   "authenticationMethod": "route",
   "routes": [
     {
+      "source": "^/mcp(.*)$",
+      "target": "/mcp$1",
+      "destination": "srv-api",
+      "authenticationType": "xsuaa"
+    },
+    {
       "source": "^/odata/v4/flights/(.*)$",
       "target": "/odata/v4/flights/$1",
       "destination": "srv-api",
