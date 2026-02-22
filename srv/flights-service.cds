@@ -1,6 +1,5 @@
 using flights from '../db/schema';
 
-@mcp: { name: 'flights-mcp', description: 'SAP Flight Data — Airlines, Connections, Flights, Bookings, Customers' }
 service FlightsService @(path: '/odata/v4/flights') {
 
     // ─── Airlines & Fleet ────────────────────────────────

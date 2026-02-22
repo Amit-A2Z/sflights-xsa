@@ -78,24 +78,25 @@ In `srv/flights-service.cds`, annotate entities you want business users to query
 ```cds
 using flights from '../db/schema';
 
-@mcp: { name: 'flights-mcp', description: 'SAP Flight Data Service' }
 service FlightsService @(path: '/odata/v4/flights') {
 
-    @mcp: { name: 'carriers', description: 'All airlines with fleet info',
+    @mcp: { name: 'carriers', description: 'Airlines with fleet and route information',
             resource: ['filter', 'orderby', 'select', 'top', 'expand'] }
     entity Carriers as projection on flights.Carriers;
 
-    @mcp: { name: 'flights', description: 'Flight schedules with seat occupancy',
+    @mcp: { name: 'flights', description: 'Flight schedules with pricing and occupancy',
             resource: ['filter', 'orderby', 'select', 'top'] }
     entity Flights as projection on flights.Flights;
 
-    @mcp: { name: 'bookings', description: 'Passenger bookings and reservations',
-            resource: ['filter', 'orderby', 'select', 'top'] }
+    @mcp: { name: 'bookings', description: 'Passenger bookings with customer details',
+            resource: ['filter', 'orderby', 'select', 'top', 'expand'] }
     entity Bookings as projection on flights.Bookings;
 
     // ... add @mcp to other entities as needed
 }
 ```
+
+> **Note:** `@mcp` annotations are type-specific: use `resource` for entities, `tool` for functions/actions, and `prompts` for service-level prompt templates. Do not put `@mcp` on the `service` definition unless providing `prompts`.
 
 ### Step 3: Configure in package.json
 

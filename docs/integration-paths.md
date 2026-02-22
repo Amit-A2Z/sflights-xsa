@@ -76,7 +76,6 @@ npm install @gavdi/cap-mcp
 
 **2. Add MCP annotations to service entities** (`srv/flights-service.cds`):
 ```cds
-@mcp: { name: 'flights-mcp', description: 'SAP Flight Data — Airlines, Connections, Flights, Bookings' }
 service FlightsService @(path: '/odata/v4/flights') {
 
     @mcp: { name: 'carriers', description: 'Airlines with fleet and route information',
