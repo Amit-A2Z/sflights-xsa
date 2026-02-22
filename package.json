@@ -35,6 +35,14 @@
         "auth": {
           "kind": "xsuaa"
         }
+      },
+      "[hybrid]": {
+        "db": {
+          "kind": "hana-cloud"
+        },
+        "auth": {
+          "kind": "dummy"
+        }
       }
     }
   }

@@ -16,6 +16,7 @@ mta_archives/
 .env
 .env.*
 default-*.json
+.vcap-services.json
 connection.properties
 *.pem
 *.key
@@ -27,14 +28,17 @@ mta-op-*/
 # Logs
 *.log
 npm-debug.log*
-
+*.txt
 # IDE
 .che/
 .vscode/
 *.swp
 *.swo
 *.code-workspace
-
+.antigravity/
+.cursors/
+.idea/
+*.kiro/
 # macOS
 .DS_Store
 .DS_Store?
